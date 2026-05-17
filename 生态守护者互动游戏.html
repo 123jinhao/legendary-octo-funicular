@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>时空救援：生态守护者 - 科学互动游戏</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome 图标 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+SC:wght@400;700;900&display=swap');
+    
+    .font-game {
+      font-family: 'ZCOOL KuaiLe', 'Noto Sans SC', sans-serif;
+    }
+    .font-body {
+      font-family: 'Noto Sans SC', sans-serif;
+    }
+    
+    /* 霓虹发光效果 */
+    .neon-border-emerald {
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.4), inset 0 0 15px rgba(16, 185, 129, 0.2);
+    }
+    .neon-border-red {
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.4), inset 0 0 15px rgba(239, 68, 68, 0.2);
+    }
+    .neon-text-emerald {
+      text-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+    }
+    
+    /* 动植物卡片悬停效果 */
+    .card-pulse:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 20px rgba(16, 185, 129, 0.3);
+    }
+
+    /* 摇晃动画 */
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-6px); }
+      75% { transform: translateX(6px); }
+    }
+    .animate-shake {
+      animation: shake 0.2s ease-in-out infinite;
+    }
+
+    /* 粒子效果容器 */
+    #particles-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col justify-between font-body overflow-x-hidden">
+
+  <!-- 音效管理器 (Web Audio API) -->
+  <script>
+    class SoundManager {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+      }
+      init() {
+        if (!this.ctx) {
+          this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+      }
+      toggleMute() {
+        this.muted = !this.muted;
+        return this.muted;
+      }
+      playLaser() {
+        if (this.muted) return; this.init();
+        let osc = this.ctx.createOscillator();
+        let gain = this.ctx.createGain();
+        osc.connect(gain); gain.connect(this.ctx.destination);
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(150, this.ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.1, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+        osc.start(); osc.stop(this.ctx.currentTime + 0.15);
+      }
+      playExplosion() {
+        if (this.muted) return; this.init();
+        let bufferSize = this.ctx.sampleRate * 0.3;
+        let buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        let data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+        let noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        let filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(800, this.ctx.currentTime);
+        filter.frequency.linearRampToValueAtTime(50, this.ctx.currentTime + 0.3);
+        let gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
+        noise.connect(filter); filter.connect(gain); gain.connect(this.ctx.destination);
+        noise.start();
+      }
+      playSuccess() {
+        if (this.muted) return; this.init();
+        let now = this.ctx.currentTime;
+        let notes = [261.63, 329.63, 392.00, 523.25];
+        notes.forEach((freq, idx) => {
+          let osc = this.ctx.createOscillator();
+          let gain = this.ctx.createGain();
+          osc.connect(gain); gain.connect(this.ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+          gain.gain.setValueAtTime(0.08, now + idx * 0.08);
+          gain.gain.linearRampToValueAtTime(0.01, now + idx * 0.08 + 0.2);
+          osc.start(now + idx * 0.08); osc.stop(now + idx * 0.08 + 0.22);
+        });
+      }
+      playFailure() {
+        if (this.muted) return; this.init();
+        let now = this.ctx.currentTime;
+        let osc = this.ctx.createOscillator();
+        let gain = this.ctx.createGain();
+        osc.connect(gain); gain.connect(this.ctx.destination);
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(220, now);
+        osc.frequency.linearRampToValueAtTime(110, now + 0.3);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+        osc.start(); osc.stop(now + 0.3);
+      }
+      playPowerup() {
+        if (this.muted) return; this.init();
+        let osc = this.ctx.createOscillator();
+        let gain = this.ctx.createGain();
+        osc.connect(gain); gain.connect(this.ctx.destination);
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(900, this.ctx.currentTime + 0.25);
+        gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+        osc.start(); osc.stop(this.ctx.currentTime + 0.25);
+      }
+    }
+    const sounds = new SoundManager();
+  </script>
+
+  <!-- 顶部导航条 -->
+  <header class="bg-slate-900 border-b border-emerald-500/30 px-6 py-4 flex justify-between items-center z-20 shadow-lg shadow-emerald-950/20">
+    <div class="flex items-center space-x-3">
+      <div class="w-10 h-10 rounded-lg bg-emerald-500 flex items-center justify-center">
+        <i class="fa-solid fa-earth-asia text-slate-950 text-xl"></i>
+      </div>
+      <div>
+        <h1 class="font-game text-xl tracking-wider text-emerald-400 neon-text-emerald">生态守护者</h1>
+        <p class="text-xs text-slate-400">六年级科学特训</p>
+      </div>
+    </div>
+    
+    <div class="flex items-center space-x-4">
+      <!-- 生态积分 -->
+      <div class="bg-slate-950 border border-emerald-500/20 px-3 py-1.5 rounded-full flex items-center space-x-2">
+        <i class="fa-solid fa-seedling text-emerald-400"></i>
+        <span class="text-xs text-slate-400">能量:</span>
+        <span id="score-display" class="font-bold text-emerald-400 font-game">0</span>
+      </div>
+      
+      <!-- 静音切换 -->
+      <button onclick="toggleMuteBtn()" id="mute-btn" class="w-9 h-9 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center transition border border-slate-700 text-slate-300">
+        <i class="fa-solid fa-volume-high"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- 游戏主容器 -->
+  <main class="flex-grow flex flex-col items-center justify-center p-4 max-w-5xl mx-auto w-full relative">
+
+    <!-- ================= 0. 游戏欢迎首界面 ================= -->
+    <section id="screen-welcome" class="w-full max-w-2xl bg-slate-900/80 backdrop-blur-md rounded-2xl p-8 border border-emerald-500/40 neon-border-emerald flex flex-col items-center text-center space-y-6">
+      <div class="relative">
+        <div class="absolute -inset-1 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 opacity-75 blur animate-pulse"></div>
+        <div class="relative bg-slate-950 p-6 rounded-full w-24 h-24 flex items-center justify-center">
+          <i class="fa-solid fa-hourglass-half text-4xl text-emerald-400 animate-pulse"></i>
+        </div>
+      </div>
+      
+      <div>
+        <h2 class="font-game text-3xl text-emerald-400 mb-2 tracking-wide neon-text-emerald">地球求救！</h2>
+        <p class="text-slate-300 text-sm leading-relaxed px-4">
+          地球生态即将崩溃！立刻回到现在，拯救动植物，重建绿色家园！
+        </p>
+      </div>
+
+      <!-- 任务目标列表 -->
+      <div class="w-full bg-slate-950/70 border border-slate-800 rounded-xl p-4 text-left space-y-2 max-w-lg">
+        <h3 class="font-bold text-xs text-emerald-400 tracking-wider uppercase mb-1 flex items-center">
+          <i class="fa-solid fa-bullseye mr-2"></i> 任务目标：
+        </h3>
+        <ul class="text-xs text-slate-300 space-y-1.5 list-none pl-1">
+          <li><span class="text-emerald-400">▶ 1.</span> 分辨已灭绝和濒临灭绝的物种</li>
+          <li><span class="text-emerald-400">▶ 2.</span> 消灭导致物种濒危的破坏因素</li>
+          <li><span class="text-emerald-400">▶ 3.</span> 科学选择“保护”与“复育”方案</li>
+          <li><span class="text-emerald-400">▶ 4.</span> 明白保护动植物的重要原因</li>
+        </ul>
+      </div>
+
+      <button onclick="startGame()" class="font-game tracking-wider px-8 py-4 bg-emerald-500 text-slate-950 rounded-xl font-bold text-lg hover:bg-emerald-400 transition transform hover:scale-105 active:scale-95 shadow-lg shadow-emerald-500/30 flex items-center space-x-2">
+        <span>开始救援！</span>
+        <i class="fa-solid fa-rocket"></i>
+      </button>
+    </section>
+
+    <!-- ================= 1. 第一关：时空档案室 ================= -->
+    <section id="screen-level1" class="w-full hidden bg-slate-900/90 rounded-2xl p-6 border border-emerald-500/30 flex flex-col space-y-6 relative">
+      <div class="flex flex-col md:flex-row md:justify-between md:items-center border-b border-slate-800 pb-4">
+        <div>
+          <span class="text-emerald-400 text-xs font-bold uppercase tracking-widest bg-emerald-950 px-2 py-1 rounded">第一关</span>
+          <h2 class="font-game text-2xl text-slate-100 mt-1">时空档案室：物种分类</h2>
+        </div>
+        <div class="text-xs text-slate-400 mt-2 md:mt-0 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
+          分类已灭绝与濒危物种
+        </div>
+      </div>
+
+      <p class="text-sm text-slate-300">
+        点击下方卡片的分类按钮，或将卡片拖入正确的传送舱。
+      </p>
+
+      <!-- 双时空传送舱 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 my-2">
+        <!-- 传送门 A: 已灭绝 -->
+        <div id="drop-zone-extinct" ondragover="allowDrop(event)" ondrop="handleDrop(event, 'extinct')" class="bg-slate-950/80 border-2 border-dashed border-red-500/30 hover:border-red-500/70 p-6 rounded-xl text-center min-h-[160px] flex flex-col items-center justify-center transition relative overflow-hidden">
+          <h3 class="font-game text-xl text-red-400 tracking-wide">已灭绝 (永远消失)</h3>
+          <div id="list-extinct" class="flex flex-wrap gap-2 mt-4 justify-center"></div>
+        </div>
+
+        <!-- 传送门 B: 濒临灭绝 -->
+        <div id="drop-zone-endangered" ondragover="allowDrop(event)" ondrop="handleDrop(event, 'endangered')" class="bg-slate-950/80 border-2 border-dashed border-orange-500/30 hover:border-orange-500/70 p-6 rounded-xl text-center min-h-[160px] flex flex-col items-center justify-center transition relative overflow-hidden">
+          <h3 class="font-game text-xl text-orange-400 tracking-wide">濒临灭绝 (非常稀少)</h3>
+          <div id="list-endangered" class="flex flex-wrap gap-2 mt-4 justify-center"></div>
+        </div>
+      </div>
+
+      <!-- 待分类物体库 -->
+      <div class="bg-slate-950 p-5 rounded-xl border border-slate-800">
+        <h4 class="text-xs font-bold text-emerald-400 tracking-wider uppercase mb-3">
+          待扫描物种卡：
+        </h4>
+        <div id="species-pool" class="flex flex-wrap justify-center gap-4 py-2"></div>
+      </div>
+
+      <!-- 下一步按钮 -->
+      <div class="flex justify-between items-center pt-4 border-t border-slate-800">
+        <span class="text-xs text-slate-400">已分类 <span id="l1-progress" class="text-emerald-400 font-bold">0</span>/8</span>
+        <button id="l1-next-btn" onclick="nextLevel(2)" disabled class="font-game tracking-wider px-6 py-2.5 bg-slate-800 text-slate-500 rounded-lg font-bold transition shadow-lg">
+          下一关：生态保卫战 <i class="fa-solid fa-arrow-right ml-1"></i>
+        </button>
+      </div>
+    </section>
+
+    <!-- ================= 2. 第二关：生态保卫战 ================= -->
+    <section id="screen-level2" class="w-full hidden bg-slate-900/90 rounded-2xl p-6 border border-emerald-500/30 flex flex-col space-y-4 relative overflow-hidden">
+      <!-- 顶部状态 -->
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-slate-800 pb-3 z-10">
+        <div>
+          <span class="text-emerald-400 text-xs font-bold uppercase tracking-widest bg-emerald-950 px-2 py-1 rounded">第二关</span>
+          <h2 class="font-game text-2xl text-slate-100 mt-1">生态保卫战：消灭威胁</h2>
+        </div>
+        <div class="flex space-x-4 items-center mt-2 md:mt-0">
+          <div class="bg-slate-950 border border-red-500/30 px-3 py-1 rounded-lg text-sm text-red-400">
+            时间: <span id="l2-timer" class="font-mono font-bold">45</span>s
+          </div>
+          <div class="bg-slate-950 border border-blue-500/30 px-3 py-1 rounded-lg text-sm text-blue-400">
+            防线: <span id="l2-hp" class="font-mono font-bold">100</span>%
+          </div>
+        </div>
+      </div>
+
+      <p class="text-sm text-slate-300">
+        快速点击并<strong class="text-red-400">消灭红色威胁</strong>！千万<strong class="text-blue-400">别点蓝色/绿色生命资源</strong>（能回血）！
+      </p>
+
+      <!-- 街机容器 -->
+      <div id="game-arena" class="w-full h-[360px] bg-gradient-to-b from-slate-950 via-slate-900 to-emerald-950/30 rounded-xl relative overflow-hidden border border-slate-800 cursor-crosshair">
+        
+        <!-- 受伤红光 -->
+        <div id="screen-damage-flash" class="absolute inset-0 bg-red-600/0 pointer-events-none transition-all duration-100 z-10"></div>
+        <div id="particles-container"></div>
+
+        <!-- 教学浮层 -->
+        <div id="arena-tutorial" class="absolute inset-0 bg-slate-950/90 z-20 flex flex-col items-center justify-center text-center p-6">
+          <div class="max-w-md space-y-4">
+            <div class="flex justify-center space-x-6 text-xl">
+              <div class="bg-red-950/50 border border-red-500/30 p-3 rounded-lg">
+                <span class="text-red-400">⚠️ 必须点击消灭</span>
+                <div class="flex justify-center space-x-3 mt-2 text-2xl">
+                  <span>🪓</span><span>🏹</span><span>🧪</span><span>🌪️</span>
+                </div>
+              </div>
+              <div class="bg-blue-950/50 border border-blue-500/30 p-3 rounded-lg">
+                <span class="text-blue-400">💧 别点，等它落下</span>
+                <div class="flex justify-center space-x-3 mt-2 text-2xl">
+                  <span>💧</span><span>🌱</span>
+                </div>
+              </div>
+            </div>
+            <p class="text-xs text-slate-400">威胁物落到底部会扣血，血量为0或时间结束通关。</p>
+            <button onclick="startArcadeGame()" class="font-game px-6 py-3 bg-red-500 text-slate-950 rounded-xl font-bold text-lg hover:bg-red-400 transition">
+              立即开战！
+            </button>
+          </div>
+        </div>
+
+        <!-- 游戏结束/胜利浮层 -->
+        <div id="arena-gameover" class="absolute inset-0 bg-slate-950/95 z-20 hidden flex flex-col items-center justify-center text-center p-6">
+          <div class="max-w-md space-y-4">
+            <div id="l2-result-icon" class="text-5xl text-emerald-400">
+              <i class="fa-solid fa-trophy"></i>
+            </div>
+            <h3 id="l2-result-title" class="font-game text-2xl text-slate-100">战斗结束</h3>
+            <p id="l2-result-text" class="text-sm text-slate-300">成功通关！</p>
+            
+            <!-- 知识讲解 -->
+            <div class="bg-slate-900 border border-slate-800 rounded-lg p-3 text-left">
+              <p class="text-xs text-emerald-400 font-bold mb-1">💡 濒危四大核心因素：</p>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                1. <strong>环境污染</strong>（工业污染、塑料污染）<br>
+                2. <strong>非法伐木与开发土地</strong>（破坏动植物栖息地）<br>
+                3. <strong>非法捕猎</strong>（导致物种锐减甚至灭绝）<br>
+                4. <strong>天灾</strong>（水灾、干旱、海啸、火山爆发等）
+              </p>
+            </div>
+
+            <div class="flex justify-center space-x-3">
+              <button onclick="resetArcade()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-bold">重新挑战</button>
+              <button onclick="nextLevel(3)" class="font-game px-5 py-2 bg-emerald-500 text-slate-950 rounded-lg text-sm font-bold hover:bg-emerald-400">
+                下一关：复兴实验室 <i class="fa-solid fa-arrow-right ml-1"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 保护带 -->
+        <div class="absolute bottom-0 inset-x-0 h-16 bg-slate-950/90 border-t border-slate-800 grid grid-cols-4 gap-1 px-2 py-1 items-center z-10 text-center">
+          <div class="flex flex-col items-center justify-center">
+            <span class="text-xl">🐼</span><span class="text-[9px] text-slate-400">大熊猫</span>
+          </div>
+          <div class="flex flex-col items-center justify-center">
+            <span class="text-xl">🦧</span><span class="text-[9px] text-slate-400">人猿</span>
+          </div>
+          <div class="flex flex-col items-center justify-center">
+            <span class="text-xl">🌸</span><span class="text-[9px] text-slate-400">莱佛士花</span>
+          </div>
+          <div class="flex flex-col items-center justify-center">
+            <span class="text-xl">🌿</span><span class="text-[9px] text-slate-400">猪笼草</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= 3. 第三关：生态复兴实验室 ================= -->
+    <section id="screen-level3" class="w-full hidden bg-slate-900/90 rounded-2xl p-6 border border-emerald-500/30 flex flex-col space-y-6 relative">
+      <div class="flex flex-col md:flex-row md:justify-between md:items-center border-b border-slate-800 pb-4">
+        <div>
+          <span class="text-emerald-400 text-xs font-bold uppercase tracking-widest bg-emerald-950 px-2 py-1 rounded">第三关</span>
+          <h2 class="font-game text-2xl text-slate-100 mt-1">生态复兴：保护与复育</h2>
+        </div>
+      </div>
+
+      <!-- 核心概念 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-emerald-950/20 border border-emerald-500/20 p-4 rounded-xl">
+          <h3 class="font-game text-lg text-emerald-400 mb-1">🛡️ 保护 (Preservation)</h3>
+          <p class="text-xs text-slate-300">
+            <strong>维持原状</strong>。设立国家公园、严惩盗猎者、保护区立法。
+          </p>
+        </div>
+        <div class="bg-teal-950/20 border border-teal-500/20 p-4 rounded-xl">
+          <h3 class="font-game text-lg text-teal-400 mb-1">🌱 复育 (Rehabilitation)</h3>
+          <p class="text-xs text-slate-300">
+            <strong>修复重建</strong>。重造森林、人工繁育、清理污染河道。
+          </p>
+        </div>
+      </div>
+
+      <!-- 匹配题 -->
+      <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-4">
+        <h4 class="text-sm font-bold text-slate-200">选择正确的科学行动：</h4>
+        
+        <div class="space-y-3">
+          <!-- 任务 1 -->
+          <div class="bg-slate-900 border border-slate-800 p-3 rounded-lg flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <p class="text-xs font-bold text-slate-200">“雨林遭遇非法开垦，人猿无家可归！”</p>
+            <div class="flex gap-2">
+              <button onclick="checkL3Answer(1, '复育', this)" class="px-4 py-1.5 bg-slate-800 hover:bg-teal-600 rounded-lg text-xs font-bold">植树造林 (复育)</button>
+              <button onclick="checkL3Answer(1, '错误', this)" class="px-4 py-1.5 bg-slate-800 hover:bg-emerald-600 rounded-lg text-xs font-bold">法律禁止开发 (保护)</button>
+            </div>
+          </div>
+
+          <!-- 任务 2 -->
+          <div class="bg-slate-900 border border-slate-800 p-3 rounded-lg flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <p class="text-xs font-bold text-slate-200">“马来亚虎只剩下不到200只，急需防止盗猎！”</p>
+            <div class="flex gap-2">
+              <button onclick="checkL3Answer(2, '错误2', this)" class="px-4 py-1.5 bg-slate-800 hover:bg-teal-600 rounded-lg text-xs font-bold">人工繁育老虎 (复育)</button>
+              <button onclick="checkL3Answer(2, '保护', this)" class="px-4 py-1.5 bg-slate-800 hover:bg-emerald-600 rounded-lg text-xs font-bold">设立国家公园严格执法 (保护)</button>
+            </div>
+          </div>
+
+          <!-- 任务 3 -->
+          <div class="bg-slate-900 border border-slate-800 p-3 rounded-lg flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <p class="text-xs font-bold text-slate-200">“海龟蛋被沙滩上的游客和野狗偷吃！”</p>
+            <div class="flex gap-2">
+              <button onclick="checkL3Answer(3, '保护', this)" class="px-4 py-1.5 bg-slate-800 hover:bg-emerald-600 rounded-lg text-xs font-bold">沙滩列为禁区 (保护)</button>
+              <button onclick="checkL3Answer(3, '复育', this)" class="px-4 py-1.5 bg-slate-800 hover:bg-teal-600 rounded-lg text-xs font-bold">建立孵育与放生计划 (复育)</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 下一步按钮 -->
+      <div class="flex justify-between items-center pt-2">
+        <span class="text-xs text-slate-400">已成功匹配：<span id="l3-progress" class="text-emerald-400 font-bold">0</span>/3</span>
+        <button id="l3-next-btn" onclick="nextLevel(4)" disabled class="font-game tracking-wider px-6 py-2.5 bg-slate-800 text-slate-500 rounded-lg font-bold">
+          进入终极生态平衡盘 <i class="fa-solid fa-arrow-right ml-1"></i>
+        </button>
+      </div>
+    </section>
+
+    <!-- ================= 4. 第四关：终极生态平衡盘 ================= -->
+    <section id="screen-level4" class="w-full hidden bg-slate-900/90 rounded-2xl p-6 border border-emerald-500/30 flex flex-col space-y-6 relative">
+      <div class="flex flex-col md:flex-row md:justify-between md:items-center border-b border-slate-800 pb-4">
+        <div>
+          <span class="text-emerald-400 text-xs font-bold uppercase tracking-widest bg-emerald-950 px-2 py-1 rounded">大终局</span>
+          <h2 class="font-game text-2xl text-slate-100 mt-1">生态平衡盘：推导拯救的意义</h2>
+        </div>
+      </div>
+
+      <p class="text-sm text-slate-300">
+        保护与复育动植物为什么这么重要？请完成以下4道核心推导题：
+      </p>
+
+      <!-- 生态连锁拼图 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- 连环问答 A: 避免动植物绝种 -->
+        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+          <p class="text-xs text-emerald-400 font-bold">🦖 1. 避免动植物绝种</p>
+          <p class="text-xs text-slate-400">进行法律保护和人工繁育的根本目的是：</p>
+          <div class="space-y-2">
+            <label class="block p-2.5 bg-slate-900 border border-slate-800 rounded-lg cursor-pointer hover:border-emerald-500/40 transition">
+              <input type="radio" name="chain-1" value="A" class="mr-2">
+              <span class="text-xs text-slate-300">A. 只是为了方便科学研究</span>
+            </label>
+            <label class="block p-2.5 bg-slate-900 border border-slate-800 rounded-lg cursor-pointer hover:border-emerald-500/40 transition">
+              <input type="radio" name="chain-1" value="B" class="mr-2">
+              <span class="text-xs text-slate-300">B. 避免濒危的生命走向灭绝，永远消失</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 连环问答 B: 维持自然资源的永续利用 -->
+        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+          <p class="text-xs text-emerald-400 font-bold">💧 2. 维持自然资源的永续利用</p>
+          <p class="text-xs text-slate-400">为什么要推行“永续（持续）利用”森林和水源？</p>
+          <div class="space-y-2">
+            <label class="block p-2.5 bg-slate-900 border border-slate-800 rounded-lg cursor-pointer hover:border-emerald-500/40 transition">
+              <input type="radio" name="chain-2" value="A" class="mr-2">
+              <span class="text-xs text-slate-300">A. 确保人类子孙后代依然有干净的水、木材等资源可用</span>
+            </label>
+            <label class="block p-2.5 bg-slate-900 border border-slate-800 rounded-lg cursor-pointer hover:border-emerald-500/40 transition">
+              <input type="radio" name="chain-2" value="B" class="mr-2">
+              <span class="text-xs text-slate-300">B. 没关系，只要现在够用就行，未来不需要管</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 连环问答 C: 维持生态平衡 -->
+        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+          <p class="text-xs text-emerald-400 font-bold">🦅 3. 维持生态平衡</p>
+          <p class="text-xs text-slate-400">如果森林中的“食草动物”大量灭绝，会导致：</p>
+          <div class="space-y-2">
+            <label class="block p-2.5 bg-slate-900 border border-slate-800 rounded-lg cursor-pointer hover:border-emerald-500/40 transition">
+              <input type="radio" name="chain-3" value="A" class="mr-2">
+              <span class="text-xs text-slate-300">A. 食物网断裂，肉食动物也走向灭绝，破坏生态平衡</span>
+            </label>
+            <label class="block p-2.5 bg-slate-900 border border-slate-800 rounded-lg cursor-pointer hover:border-emerald-500/40 transition">
+              <input type="radio" name="chain-3" value="B" class="mr-2">
+              <span class="text-xs text-slate-300">B. 其他食草动物会突然暴增，生态自动变好</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 连环问答 D: 避免失去栖息地 -->
+        <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+          <p class="text-xs text-emerald-400 font-bold">🌳 4. 避免失去栖息地</p>
+          <p class="text-xs text-slate-400">保护森林、红树林和珊瑚礁，最重要的意义是：</p>
+          <div class="space-y-2">
+            <label class="block p-2.5 bg-slate-900 border border-slate-800 rounded-lg cursor-pointer hover:border-emerald-500/40 transition">
+              <input type="radio" name="chain-4" value="A" class="mr-2">
+              <span class="text-xs text-slate-300">A. 保护野生动植物天然的“家园”（生存环境）</span>
+            </label>
+            <label class="block p-2.5 bg-slate-900 border border-slate-800 rounded-lg cursor-pointer hover:border-emerald-500/40 transition">
+              <input type="radio" name="chain-4" value="B" class="mr-2">
+              <span class="text-xs text-slate-300">B. 只是为了留出空地，建立人类的水上乐园</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- 科学总结点睛 -->
+      <div class="bg-gradient-to-r from-emerald-950/40 to-slate-900 border border-emerald-500/20 p-4 rounded-xl">
+        <h3 class="text-xs font-bold text-emerald-400 mb-1">💡 科学考点总结：为什么要保护与复育？</h3>
+        <ul class="text-xs text-slate-300 space-y-1 pl-4 list-disc leading-relaxed">
+          <li><strong>避免动植物绝种</strong>：留下可贵的物种基因，不让大自然失去色彩。</li>
+          <li><strong>永续利用</strong>：维持人类呼吸的氧气、治疗疾病的草药和纯净水资源。</li>
+          <li><strong>维持生态平衡</strong>：保证复杂的食物网正常运转，避免产生连锁毁灭灾难。</li>
+          <li><strong>保护栖息地</strong>：没有健康的栖息地，保护与复育动植物就是空谈。</li>
+        </ul>
+      </div>
+
+      <!-- 提交按钮 -->
+      <div class="flex justify-between items-center pt-2">
+        <span class="text-xs text-slate-400">完成4道推导题后上传芯片！</span>
+        <button onclick="submitFinalAnswers()" class="font-game tracking-wider px-8 py-3 bg-emerald-500 text-slate-950 rounded-xl font-bold text-lg hover:bg-emerald-400 transition flex items-center space-x-2">
+          <span>完成救援！ 🚀</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ================= 5. 游戏终极胜利 ================= -->
+    <section id="screen-victory" class="w-full hidden bg-slate-900/90 rounded-2xl p-8 border border-emerald-500/40 neon-border-emerald flex flex-col items-center text-center space-y-6 max-w-2xl">
+      <div class="relative">
+        <div class="absolute -inset-2 rounded-full bg-gradient-to-r from-emerald-400 to-amber-400 opacity-75 blur animate-pulse"></div>
+        <div class="relative bg-slate-950 p-6 rounded-full w-28 h-28 flex items-center justify-center">
+          <i class="fa-solid fa-trophy text-5xl text-amber-400"></i>
+        </div>
+      </div>
+
+      <div>
+        <h2 class="font-game text-3xl text-emerald-400 mt-2 neon-text-emerald">生态守护者，任务完成！</h2>
+        <p class="text-slate-300 text-sm mt-3 leading-relaxed">
+          你成功拯救了野生动植物，重建了绿色地球！
+        </p>
+      </div>
+
+      <!-- 玩家科学成就勋章卡 -->
+      <div class="w-full bg-slate-950/80 border border-slate-800 p-5 rounded-xl text-left space-y-3 max-w-md">
+        <div class="flex items-center space-x-3 pb-2 border-b border-slate-800">
+          <span class="text-3xl">🏅</span>
+          <div>
+            <h4 class="font-game text-base text-slate-200">科学勋章：【生物多样性卫士】</h4>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4 text-xs">
+          <div class="bg-slate-900 p-2.5 rounded border border-slate-800">
+            <span class="text-slate-400 block">等级</span>
+            <span class="text-emerald-400 font-bold font-game">特级 SSS</span>
+          </div>
+          <div class="bg-slate-900 p-2.5 rounded border border-slate-800">
+            <span class="text-slate-400 block">得分</span>
+            <span id="final-score-display" class="text-amber-400 font-bold font-game">0</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 重新开始 -->
+      <button onclick="restartGame()" class="font-game tracking-wider px-6 py-3 bg-emerald-500 text-slate-950 rounded-xl font-bold hover:bg-emerald-400 transition">
+        再玩一次 🔄
+      </button>
+    </section>
+
+  </main>
+
+  <!-- 底部页脚说明 -->
+  <footer class="bg-slate-950 border-t border-slate-900/60 py-4 text-center text-xs text-slate-500 z-10">
+    <p>小学六年级科学：保护与复育 | 互动实验室</p>
+  </footer>
+
+  <!-- 逻辑JavaScript实现 -->
+  <script>
+    // 全局数据状态
+    let state = {
+      score: 0,
+      currentLevel: 0,
+      level1Data: [
+        { id: 'dino', name: '恐龙', type: 'extinct', emoji: '🦖', desc: '已经永远消失了。' },
+        { id: 'dodo', name: '渡渡鸟', type: 'extinct', emoji: '🦤', desc: '因人类捕猎和天敌灭绝。' },
+        { id: 'mammoth', name: '猛犸象', type: 'extinct', emoji: '🦣', desc: '气候变暖与人类捕猎灭绝。' },
+        { id: 'tasmanian', name: '袋狼', type: 'extinct', emoji: '🐺', desc: '因人类捕杀彻底灭绝。' },
+        { id: 'panda', name: '大熊猫', type: 'endangered', emoji: '🐼', desc: '数量极少，非常稀有。' },
+        { id: 'orangutan', name: '人猿', type: 'endangered', emoji: '🦧', desc: '雨林被砍，失去家园。' },
+        { id: 'rafflesia', name: '莱佛士花', type: 'endangered', emoji: '🌸', desc: '繁殖困难，濒临灭绝。' },
+        { id: 'pitcher', name: '猪笼草', type: 'endangered', emoji: '🌿', desc: '遭遇人类过度采挖。' }
+      ],
+      level1Done: {},
+      level3Done: { 1: false, 2: false, 3: false },
+      arcadeTimer: null,
+      arcadeHP: 100,
+      arcadeRemaining: 45,
+      arcadeInterval: null
+    };
+
+    // 音量图标切换
+    function toggleMuteBtn() {
+      let isMuted = sounds.toggleMute();
+      let btn = document.getElementById('mute-btn');
+      if (isMuted) {
+        btn.innerHTML = '<i class="fa-solid fa-volume-xmark"></i>';
+        btn.classList.add('text-red-400');
+      } else {
+        btn.innerHTML = '<i class="fa-solid fa-volume-high"></i>';
+        btn.classList.remove('text-red-400');
+      }
+    }
+
+    // 更新全局分数显示
+    function updateScore(amount) {
+      state.score += amount;
+      if (state.score < 0) state.score = 0;
+      document.getElementById('score-display').innerText = state.score;
+    }
+
+    // 显示不同的场景/关卡
+    function showScreen(screenId) {
+      const screens = ['screen-welcome', 'screen-level1', 'screen-level2', 'screen-level3', 'screen-level4', 'screen-victory'];
+      screens.forEach(s => {
+        document.getElementById(s).classList.add('hidden');
+      });
+      document.getElementById(screenId).classList.remove('hidden');
+    }
+
+    // 游戏初始启动
+    function startGame() {
+      sounds.playPowerup();
+      initLevel1();
+      showScreen('screen-level1');
+    }
+
+    // 下一关路由逻辑
+    function nextLevel(levelNum) {
+      sounds.playPowerup();
+      if (levelNum === 2) {
+        showScreen('screen-level2');
+        resetArcade();
+      } else if (levelNum === 3) {
+        showScreen('screen-level3');
+      } else if (levelNum === 4) {
+        showScreen('screen-level4');
+      }
+    }
+
+    // ================= LEVEL 1: 时空分类关卡逻辑 =================
+    function initLevel1() {
+      state.level1Done = {};
+      const pool = document.getElementById('species-pool');
+      pool.innerHTML = '';
+      document.getElementById('list-extinct').innerHTML = '';
+      document.getElementById('list-endangered').innerHTML = '';
+      
+      const shuffled = [...state.level1Data].sort(() => Math.random() - 0.5);
+      
+      shuffled.forEach(item => {
+        const card = document.createElement('div');
+        card.id = `species-${item.id}`;
+        card.className = "bg-slate-900 border border-slate-700 p-3 rounded-xl flex flex-col items-center justify-center w-28 text-center cursor-pointer transition transform card-pulse hover:-translate-y-1 active:scale-95 z-10";
+        card.setAttribute('draggable', 'true');
+        card.addEventListener('dragstart', (e) => {
+          e.dataTransfer.setData('text/plain', item.id);
+        });
+        
+        card.innerHTML = `
+          <span class="text-3xl mb-1">${item.emoji}</span>
+          <span class="text-xs font-bold text-slate-100">${item.name}</span>
+          <div class="flex space-x-1 mt-2 w-full">
+            <button onclick="handleManualSort('${item.id}', 'extinct')" class="flex-1 bg-red-950/40 hover:bg-red-900 border border-red-500/30 text-[9px] text-red-400 py-0.5 rounded transition">灭绝</button>
+            <button onclick="handleManualSort('${item.id}', 'endangered')" class="flex-1 bg-orange-950/40 hover:bg-orange-900 border border-orange-500/30 text-[9px] text-orange-400 py-0.5 rounded transition">濒危</button>
+          </div>
+        `;
+        pool.appendChild(card);
+      });
+      
+      updateL1Progress();
+    }
+
+    // 拖拽辅助
+    function allowDrop(e) {
+      e.preventDefault();
+    }
+
+    function handleDrop(e, targetType) {
+      e.preventDefault();
+      const itemId = e.dataTransfer.getData('text/plain');
+      handleManualSort(itemId, targetType);
+    }
+
+    function handleManualSort(itemId, targetType) {
+      const item = state.level1Data.find(x => x.id === itemId);
+      if (!item) return;
+      if (state.level1Done[itemId]) return;
+
+      const card = document.getElementById(`species-${itemId}`);
+      
+      if (item.type === targetType) {
+        sounds.playSuccess();
+        updateScore(150);
+        state.level1Done[itemId] = true;
+        
+        card.classList.remove('bg-slate-900', 'border-slate-700', 'card-pulse');
+        card.classList.add(targetType === 'extinct' ? 'bg-red-950/30' : 'bg-orange-950/30');
+        card.classList.add(targetType === 'extinct' ? 'border-red-500/40' : 'border-orange-500/40');
+        card.querySelector('.flex').remove();
+        
+        const infoTip = document.createElement('p');
+        infoTip.className = "text-[9px] text-slate-400 mt-1 italic max-w-[90px] leading-tight";
+        infoTip.innerText = item.desc;
+        card.appendChild(infoTip);
+
+        const listContainer = targetType === 'extinct' ? document.getElementById('list-extinct') : document.getElementById('list-endangered');
+        listContainer.appendChild(card);
+        triggerParticles(card);
+      } else {
+        sounds.playFailure();
+        updateScore(-50);
+        card.classList.add('animate-shake', 'border-red-500');
+        setTimeout(() => {
+          card.classList.remove('animate-shake', 'border-red-500');
+        }, 500);
+        
+        showVisualMessage(`不对哦，${item.name}不是这一类的！`, 'error');
+      }
+
+      updateL1Progress();
+    }
+
+    function updateL1Progress() {
+      const doneCount = Object.keys(state.level1Done).length;
+      document.getElementById('l1-progress').innerText = doneCount;
+      if (doneCount === 8) {
+        const nextBtn = document.getElementById('l1-next-btn');
+        nextBtn.disabled = false;
+        nextBtn.classList.remove('bg-slate-800', 'text-slate-500');
+        nextBtn.classList.add('bg-emerald-500', 'text-slate-950');
+        showVisualMessage("第一关完成！开启下一关！", "success");
+      }
+    }
+
+
+    // ================= LEVEL 2: 街机式生态威胁消灭 =================
+    let activeThreats = [];
+    
+    function resetArcade() {
+      state.arcadeHP = 100;
+      state.arcadeRemaining = 45;
+      activeThreats = [];
+      document.getElementById('l2-timer').innerText = state.arcadeRemaining;
+      document.getElementById('l2-hp').innerText = state.arcadeHP;
+      
+      const threats = document.querySelectorAll('.arena-item');
+      threats.forEach(t => t.remove());
+      
+      document.getElementById('arena-tutorial').classList.remove('hidden');
+      document.getElementById('arena-gameover').classList.add('hidden');
+    }
+
+    function startArcadeGame() {
+      sounds.playPowerup();
+      document.getElementById('arena-tutorial').classList.add('hidden');
+      
+      state.arcadeInterval = setInterval(() => {
+        state.arcadeRemaining--;
+        document.getElementById('l2-timer').innerText = state.arcadeRemaining;
+        
+        if (state.arcadeRemaining <= 0) {
+          endArcadeGame(true);
+        }
+        
+        if (Math.random() < 0.65) {
+          spawnArenaItem();
+        }
+      }, 1000);
+      
+      state.physicsInterval = setInterval(() => {
+        updateArenaItems();
+      }, 30);
+    }
+
+    function spawnArenaItem() {
+      const arena = document.getElementById('game-arena');
+      const item = document.createElement('div');
+      item.className = "arena-item absolute select-none text-2xl transition-all duration-300 transform scale-100 cursor-pointer p-2 z-10 flex flex-col items-center justify-center rounded-lg border";
+      
+      const itemTypes = [
+        { emoji: '🪓', type: 'threat', name: '非法伐木与开发土地', colorClass: 'border-red-500 bg-red-950/80 text-red-400' },
+        { emoji: '🏹', type: 'threat', name: '非法捕猎', colorClass: 'border-red-500 bg-red-950/80 text-red-400' },
+        { emoji: '🧪', type: 'threat', name: '环境污染', colorClass: 'border-red-500 bg-red-950/80 text-red-400' },
+        { emoji: '🌪️', type: 'threat', name: '天灾', colorClass: 'border-orange-500 bg-orange-950/80 text-orange-400' },
+        { emoji: '💧', type: 'benefit', name: '生命水源', colorClass: 'border-blue-500 bg-blue-950/80 text-blue-400' },
+        { emoji: '🌱', type: 'benefit', name: '植树计划', colorClass: 'border-emerald-500 bg-emerald-950/80 text-emerald-400' }
+      ];
+
+      const randomObj = Math.random() < 0.7 
+        ? itemTypes[Math.floor(Math.random() * 4)]
+        : itemTypes[4 + Math.floor(Math.random() * 2)];
+
+      item.innerHTML = `
+        <span>${randomObj.emoji}</span>
+        <span class="text-[8px] mt-0.5 leading-none px-1 text-center font-bold">${randomObj.name}</span>
+      `;
+      item.className += ` ${randomObj.colorClass}`;
+      
+      const startX = Math.random() * (arena.clientWidth - 50);
+      item.style.left = startX + 'px';
+      item.style.top = '-50px';
+      
+      arena.appendChild(item);
+      
+      const speed = 1.5 + Math.random() * 2.0;
+      
+      const itemData = {
+        dom: item,
+        x: startX,
+        y: -50,
+        speed: speed,
+        type: randomObj.type,
+        emoji: randomObj.emoji
+      };
+      
+      item.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+        handleArenaItemClick(itemData);
+      });
+      item.addEventListener('touchstart', (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        handleArenaItemClick(itemData);
+      });
+
+      activeThreats.push(itemData);
+    }
+
+    function updateArenaItems() {
+      const arenaHeight = 360;
+      
+      for (let i = activeThreats.length - 1; i >= 0; i--) {
+        const item = activeThreats[i];
+        item.y += item.speed;
+        item.dom.style.top = item.y + 'px';
+        
+        if (item.y > (arenaHeight - 80)) {
+          if (item.type === 'threat') {
+            state.arcadeHP -= 15;
+            sounds.playFailure();
+            if (state.arcadeHP < 0) state.arcadeHP = 0;
+            document.getElementById('l2-hp').innerText = state.arcadeHP;
+            
+            const flash = document.getElementById('screen-damage-flash');
+            flash.classList.remove('bg-red-600/0');
+            flash.classList.add('bg-red-600/30');
+            setTimeout(() => {
+              flash.classList.remove('bg-red-600/30');
+              flash.classList.add('bg-red-600/0');
+            }, 100);
+            
+            if (state.arcadeHP <= 0) {
+              endArcadeGame(false);
+            }
+          }
+          
+          item.dom.remove();
+          activeThreats.splice(i, 1);
+        }
+      }
+    }
+
+    function handleArenaItemClick(item) {
+      if (item.type === 'threat') {
+        sounds.playExplosion();
+        updateScore(100);
+        triggerParticles(item.dom, '#ef4444');
+        showFloatingText(item.dom, '+100', 'text-emerald-400');
+      } else {
+        sounds.playFailure();
+        state.arcadeHP += 10;
+        if (state.arcadeHP > 100) state.arcadeHP = 100;
+        document.getElementById('l2-hp').innerText = state.arcadeHP;
+        
+        updateScore(50);
+        triggerParticles(item.dom, '#3b82f6');
+        showFloatingText(item.dom, '生命护盾 +10%', 'text-blue-400');
+      }
+      
+      item.dom.remove();
+      const idx = activeThreats.indexOf(item);
+      if (idx > -1) {
+        activeThreats.splice(idx, 1);
+      }
+    }
+
+    function showFloatingText(element, text, colorClass) {
+      const textNode = document.createElement('div');
+      textNode.className = `absolute font-game font-bold text-sm ${colorClass} transition-all duration-700 pointer-events-none z-20`;
+      textNode.innerText = text;
+      textNode.style.left = element.style.left;
+      textNode.style.top = element.style.top;
+      
+      document.getElementById('game-arena').appendChild(textNode);
+      
+      setTimeout(() => {
+        textNode.style.transform = 'translateY(-40px) scale(1.3)';
+        textNode.style.opacity = '0';
+      }, 10);
+      
+      setTimeout(() => {
+        textNode.remove();
+      }, 700);
+    }
+
+    function endArcadeGame(isWin) {
+      clearInterval(state.arcadeInterval);
+      clearInterval(state.physicsInterval);
+      
+      const overScreen = document.getElementById('arena-gameover');
+      overScreen.classList.remove('hidden');
+      
+      const icon = document.getElementById('l2-result-icon');
+      const title = document.getElementById('l2-result-title');
+      const text = document.getElementById('l2-result-text');
+      
+      if (isWin) {
+        sounds.playSuccess();
+        icon.innerHTML = '<i class="fa-solid fa-square-check text-emerald-400 text-6xl"></i>';
+        title.innerText = "保卫成功！";
+        title.className = "font-game text-2xl text-emerald-400";
+        text.innerText = "成功拦截所有威胁，保卫了家园！";
+        updateScore(500);
+      } else {
+        sounds.playFailure();
+        icon.innerHTML = '<i class="fa-solid fa-circle-exclamation text-red-500 text-6xl animate-bounce"></i>';
+        title.innerText = "防线失守！";
+        title.className = "font-game text-2xl text-red-500";
+        text.innerText = "动植物遭受严重破坏。重新挑战吧！";
+      }
+    }
+
+
+    // ================= LEVEL 3: 科学连线匹配逻辑 =================
+    function checkL3Answer(taskId, chosenType, buttonElement) {
+      if (state.level3Done[taskId]) return;
+
+      if (chosenType === '复育' || chosenType === '保护') {
+        sounds.playSuccess();
+        state.level3Done[taskId] = true;
+        updateScore(200);
+        
+        buttonElement.className = "px-4 py-1.5 bg-emerald-500 text-slate-950 rounded-lg text-xs font-bold transition scale-105 shadow-md shadow-emerald-500/20";
+        buttonElement.innerHTML = `<i class="fa-solid fa-check mr-1"></i> 正确！`;
+        
+        const sibling = buttonElement.nextElementSibling || buttonElement.previousElementSibling;
+        if (sibling) {
+          sibling.disabled = true;
+          sibling.className = "px-4 py-1.5 bg-slate-950 text-slate-700 rounded-lg text-xs font-bold cursor-not-allowed opacity-40";
+        }
+        
+        triggerParticles(buttonElement);
+      } else {
+        sounds.playFailure();
+        updateScore(-50);
+        buttonElement.className = "px-4 py-1.5 bg-red-600 text-slate-100 rounded-lg text-xs font-bold transition animate-shake";
+        buttonElement.innerHTML = `⚠️ 匹配错误`;
+        
+        setTimeout(() => {
+          buttonElement.className = "px-4 py-1.5 bg-slate-800 hover:bg-red-600 rounded-lg text-xs font-bold transition";
+          if (taskId === 1) {
+            buttonElement.innerText = "法律禁止开发 (保护)";
+          } else if (taskId === 2) {
+            buttonElement.innerText = "人工繁育老虎 (复育)";
+          } else {
+            buttonElement.innerText = "建立孵育与放生计划 (复育)";
+          }
+        }, 1200);
+      }
+
+      let doneCount = 0;
+      if (state.level3Done[1]) doneCount++;
+      if (state.level3Done[2]) doneCount++;
+      if (state.level3Done[3]) doneCount++;
+      
+      document.getElementById('l3-progress').innerText = doneCount;
+      if (doneCount === 3) {
+        const nextBtn = document.getElementById('l3-next-btn');
+        nextBtn.disabled = false;
+        nextBtn.classList.remove('bg-slate-800', 'text-slate-500');
+        nextBtn.classList.add('bg-emerald-500', 'text-slate-950');
+        showVisualMessage("匹配完成！进入最后的推导！", "success");
+      }
+    }
+
+
+    // ================= LEVEL 4: 生态大终局推导逻辑 =================
+    function submitFinalAnswers() {
+      const q1 = document.querySelector('input[name="chain-1"]:checked');
+      const q2 = document.querySelector('input[name="chain-2"]:checked');
+      const q3 = document.querySelector('input[name="chain-3"]:checked');
+      const q4 = document.querySelector('input[name="chain-4"]:checked');
+      
+      if (!q1 || !q2 || !q3 || !q4) {
+        sounds.playFailure();
+        showVisualMessage("请先回答所有4道问题！", "error");
+        return;
+      }
+
+      if (q1.value === 'B' && q2.value === 'A' && q3.value === 'A' && q4.value === 'A') {
+        sounds.playSuccess();
+        updateScore(1000);
+        document.getElementById('final-score-display').innerText = state.score;
+        showScreen('screen-victory');
+      } else {
+        sounds.playFailure();
+        showVisualMessage("答案不正确！请重新分析生态重要性。", "error");
+      }
+    }
+
+    function restartGame() {
+      state.score = 0;
+      state.level1Done = {};
+      state.level3Done = { 1: false, 2: false, 3: false };
+      
+      document.getElementById('score-display').innerText = '0';
+      document.getElementById('l1-next-btn').disabled = true;
+      document.getElementById('l1-next-btn').className = "font-game tracking-wider px-6 py-2.5 bg-slate-800 text-slate-500 rounded-lg font-bold hover:bg-emerald-500 hover:text-slate-950 disabled:hover:bg-slate-800 disabled:hover:text-slate-500 transition shadow-lg";
+      
+      document.getElementById('l3-next-btn').disabled = true;
+      document.getElementById('l3-next-btn').className = "font-game tracking-wider px-6 py-2.5 bg-slate-800 text-slate-500 rounded-lg font-bold hover:bg-emerald-500 hover:text-slate-950 disabled:hover:bg-slate-800 disabled:hover:text-slate-500 transition shadow-lg";
+      
+      // 清空所有选中的单选框
+      const radios = document.querySelectorAll('input[type="radio"]');
+      radios.forEach(r => r.checked = false);
+
+      showScreen('screen-welcome');
+    }
+
+
+    // ================= 辅助粒子发射动画效果 =================
+    function triggerParticles(element, color = '#10b981') {
+      const container = document.getElementById('particles-container');
+      const rect = element.getBoundingClientRect();
+      const parentRect = container.getBoundingClientRect();
+      
+      const x = rect.left - parentRect.left + rect.width / 2;
+      const y = rect.top - parentRect.top + rect.height / 2;
+      
+      for (let i = 0; i < 15; i++) {
+        const p = document.createElement('div');
+        p.className = 'absolute w-1.5 h-1.5 rounded-full pointer-events-none transition-all duration-700 ease-out z-30';
+        p.style.backgroundColor = color;
+        p.style.left = x + 'px';
+        p.style.top = y + 'px';
+        container.appendChild(p);
+        
+        const angle = Math.random() * Math.PI * 2;
+        const velocity = 20 + Math.random() * 60;
+        const targetX = x + Math.cos(angle) * velocity;
+        const targetY = y + Math.sin(angle) * velocity;
+        
+        setTimeout(() => {
+          p.style.transform = `translate(${targetX - x}px, ${targetY - y}px) scale(0)`;
+          p.style.opacity = '0';
+        }, 10);
+        
+        setTimeout(() => {
+          p.remove();
+        }, 700);
+      }
+    }
+
+    function showVisualMessage(msg, type = 'info') {
+      const alertDiv = document.createElement('div');
+      const themeClass = type === 'success' 
+        ? 'bg-emerald-950 border-emerald-500 text-emerald-400' 
+        : 'bg-red-950 border-red-500 text-red-400';
+        
+      alertDiv.className = `fixed top-20 left-1/2 transform -translate-x-1/2 px-6 py-3 border rounded-xl shadow-xl transition-all duration-500 opacity-0 scale-90 ${themeClass} z-50 text-xs font-bold tracking-wide`;
+      alertDiv.innerText = msg;
+      
+      document.body.appendChild(alertDiv);
+      
+      setTimeout(() => {
+        alertDiv.classList.remove('opacity-0', 'scale-90');
+        alertDiv.classList.add('opacity-100', 'scale-100');
+      }, 10);
+      
+      setTimeout(() => {
+        alertDiv.classList.remove('opacity-100', 'scale-100');
+        alertDiv.classList.add('opacity-0', 'scale-95');
+        setTimeout(() => alertDiv.remove(), 500);
+      }, 3500);
+    }
+  </script>
+</body>
+</html>
